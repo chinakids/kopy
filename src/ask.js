@@ -44,25 +44,47 @@ async function getMockedAnswers(mockPrompts, prompts) {
   return answers
 }
 
-export default function ask(prompts, mockPrompts) {
-  return ctx => {
-    if (mockPrompts && prompts) {
-      return getMockedAnswers(mockPrompts, prompts).then(answers => {
-        ctx.meta = { answers }
-      })
+const promptsSeparator = (prompts, mockPrompts) => {
+  const hasMockPrompts = [];
+  const noMockPrompts = [];
+  for(const prompt of prompts){
+    if(Object.hasOwnProperty.call(mockPrompts, prompt.name)) {
+      hasMockPrompts.push(prompt)
+    }else{
+      noMockPrompts.push(prompt)
+    }
+  }
+  return {
+    hasMockPrompts,
+    noMockPrompts
+  }
+}
+
+
+export default function ask(prompts = [], mockPrompts = {}) {
+  return async ctx => {
+
+    const { hasMockPrompts, noMockPrompts } = promptsSeparator(prompts, mockPrompts);
+
+    let hasMockPromptsAnswers = {};
+    let noMockPromptsAnswers = {};
+    
+    if (mockPrompts && hasMockPrompts) {
+      hasMockPromptsAnswers = await getMockedAnswers(mockPrompts, hasMockPrompts);
     }
 
-    if (prompts) {
-      return inquirer.prompt(prompts).then(answers => {
+    if (noMockPrompts) {
+      noMockPromptsAnswers = await inquirer.prompt(noMockPrompts).then(answers => {
         // prevent from ReferenceErrors
-        for (const prompt of prompts) {
+        for (const prompt of noMockPrompts) {
           if (!Object.prototype.hasOwnProperty.call(answers, prompt.name)) {
             answers[prompt.name] = undefined
           }
         }
-
-        ctx.meta = { answers }
+        return answers;
+        //ctx.meta = { answers }
       })
     }
+    ctx.meta = { answers: { ...mockPrompts, ...hasMockPromptsAnswers, ...noMockPromptsAnswers } }
   }
 }
